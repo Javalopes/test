@@ -56,45 +56,30 @@ function MyAvatar({ mvX, mvY, isMoving, interrupted, username, profileData, targ
 
   // Dispara partículas quando interrupted muda para true
   const prevInterrupted = useRef(false);
-  useEffect(() => {
-    if (interrupted && !prevInterrupted.current) {
-      const px = mvX.get();
-      const py = mvY.get();
-      const count = 8 + Math.floor(Math.random() * 5);
-      const newParticles = Array.from({ length: count }, (_, i) => ({
-        id: Date.now() + i,
-        x: px,
-        y: py,
-      }));
-      setParticles(prev => [...prev, ...newParticles]);
-    }
-    prevInterrupted.current = interrupted;
-  }, [interrupted, mvX, mvY]);
+  //aki
+   useEffect(() => {
+    if (!isMoving) return;
 
-  // Detecta direção do movimento para flip e direção Y
-  useEffect(() => {
-    const unsub = mvX.on('change', (currentX) => {
-      if (currentX < prevXRef.current) {
-        setIsFlipped(true);
-      } else if (currentX > prevXRef.current) {
-        setIsFlipped(false);
-      }
-      prevXRef.current = currentX;
+    const updateDirection = () => {
+      const curX = mvX.get();
+      const curY = mvY.get();
+      const tarX = targetPosRef.current.x;
+      const tarY = targetPosRef.current.y;
 
-      // Calcula direção Y baseado em targetPos
-      const currentY = mvY.get();
-      const targetY = targetPosRef.current.y;
-      if (targetY < currentY - 10) {
-        setDirectionY(-1); // Cima
-      } else if (targetY > currentY + 10) {
-        setDirectionY(1); // Baixo
-      } else {
-        setDirectionY(0); // Horizontal
-      }
-    });
-    return unsub;
-  }, [mvX, mvY]);
+      // Flip horizontal baseado no DESTINO
+      setIsFlipped(tarX < curX);
 
+      // Direção Vertical (Para o MinerSprite mostrar a mochila ou a cara)
+      if (tarY < curY - 15) setDirectionY(-1);      // Cima (Costas)
+      else if (tarY > curY + 15) setDirectionY(1);  // Baixo (Frente)
+      else setDirectionY(0);                        // Lado (Perfil)
+    };
+
+    updateDirection(); // Executa logo no clique
+    const unsubX = mvX.on('change', updateDirection);
+    return () => unsubX();
+  }, [isMoving, mvX, mvY, targetPosRef]);
+//ate aki
   const removeParticle = useCallback((id) => {
     setParticles(prev => prev.filter(p => p.id !== id));
   }, []);
@@ -509,26 +494,30 @@ export default function CityMap({ currentPlayer, walletAddress, className, onLoo
     if (!walletAddress) return;
 
     setProfileLoading(true);
-    supabase
+    //aki
+     supabase
       .from('perfil_mineiro')
       .select('pos_x, pos_y')
       .eq('id', walletAddress)
       .single()
       .then(({ data, error }) => {
         if (error) {
-          // erro ao carregar posição, usar padrão
-          setProfileData({ pos_x: 200, pos_y: 200 });
-        } else {
-          setProfileData(data || { pos_x: 200, pos_y: 200 });
-          // Inicializa MotionValues com dados reais da DB
-          mvX.set(data?.pos_x ?? 200);
-          mvY.set(data?.pos_y ?? 200);
-          // Atualiza refs também
-          targetPosRef.current = { x: data?.pos_x ?? 200, y: data?.pos_y ?? 200 };
-          lastSavedPosRef.current = { x: data?.pos_x ?? 200, y: data?.pos_y ?? 200 };
+          const def = { pos_x: 500, pos_y: 500 };
+          mvX.set(def.pos_x); mvY.set(def.pos_y);
+          setProfileData(def);
+        } else if (data) {
+          const startX = data.pos_x ?? 500;
+          const startY = data.pos_y ?? 500;
+          // Injeta os valores na DB diretamente nos MotionValues
+          mvX.set(startX);
+          mvY.set(startY);
+          targetPosRef.current = { x: startX, y: startY };
+          lastSavedPosRef.current = { x: startX, y: startY };
+          setProfileData(data);
         }
         setProfileLoading(false);
       });
+      //ate aki
   }, [walletAddress, mvX, mvY]);
 
   // ── Centrar câmara quando avatar está pronto ────────────────────────────
