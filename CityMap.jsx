@@ -48,38 +48,12 @@ function NeonDustParticle({ x, y, onDone }) {
 }
 
 // ─── Meu Avatar ─────────────────────────────────────────────────────────────
-function MyAvatar({ mvX, mvY, isMoving, interrupted, username, profileData, targetPosRef }) {
+function MyAvatar({ mvX, mvY, isMoving, interrupted, username, profileData, targetPosRef, isFlipped, directionY }) {
   const [particles, setParticles] = useState([]);
-  const [isFlipped, setIsFlipped] = useState(false);
-  const [directionY, setDirectionY] = useState(0); // -1 = cima, 0 = horizontal, 1 = baixo
   const prevXRef = useRef(0);
 
   // Dispara partículas quando interrupted muda para true
   const prevInterrupted = useRef(false);
-  //aki
-   useEffect(() => {
-    if (!isMoving) return;
-
-    const updateDirection = () => {
-      const curX = mvX.get();
-      const curY = mvY.get();
-      const tarX = targetPosRef.current.x;
-      const tarY = targetPosRef.current.y;
-
-      // Flip horizontal baseado no DESTINO
-      setIsFlipped(tarX < curX);
-
-      // Direção Vertical (Para o MinerSprite mostrar a mochila ou a cara)
-      if (tarY < curY - 15) setDirectionY(-1);      // Cima (Costas)
-      else if (tarY > curY + 15) setDirectionY(1);  // Baixo (Frente)
-      else setDirectionY(0);                        // Lado (Perfil)
-    };
-
-    updateDirection(); // Executa logo no clique
-    const unsubX = mvX.on('change', updateDirection);
-    return () => unsubX();
-  }, [isMoving, mvX, mvY, targetPosRef]);
-//ate aki
   const removeParticle = useCallback((id) => {
     setParticles(prev => prev.filter(p => p.id !== id));
   }, []);
@@ -387,6 +361,9 @@ export default function CityMap({ currentPlayer, walletAddress, className, onLoo
   const [houses, setHouses] = useState([]);
   const [remotePlayers, setRemotePlayers] = useState({});
   const [loading, setLoading] = useState(true);
+
+  const [isFlipped, setIsFlipped] = useState(false);
+  const [directionY, setDirectionY] = useState(0);
 
   // MotionValues para posição contínua e interrompível do avatar
   const [profileData, setProfileData] = useState(null);
@@ -920,17 +897,29 @@ export default function CityMap({ currentPlayer, walletAddress, className, onLoo
     moveTo(destX, destY, null);
   }, [walletAddress, houses, moveTo]);
 
-  // ── Clique no chão — move sem abrir modal (interrompível) ────────────
+   // Clique no chão — MOVE E VIRA O BONECO INSTANTANEAMENTE ────────────
   const handleGroundClick = useCallback((e) => {
     if (isDragging.current || !walletAddress) return;
     const rect = viewportRef.current.getBoundingClientRect();
     const worldX = (e.clientX - rect.left) - pan.x;
     const worldY = (e.clientY - rect.top) - pan.y;
 
+    // --- FIX DO MOONWALK: Vira o boneco no momento do clique ---
+    const curX = mvX.get();
+    const curY = mvY.get();
+    
+    // Se o clique for à esquerda da posição atual, inverte (isFlipped)
+    setIsFlipped(worldX < curX);
+
+    // Define direção vertical para o MinerSprite mostrar mochila ou cara
+    if (worldY < curY - 15) setDirectionY(-1);      // Cima
+    else if (worldY > curY + 15) setDirectionY(1);  // Baixo
+    else setDirectionY(0);                          // Lado
+    // -----------------------------------------------------------
+
     setClickPing({ x: worldX, y: worldY, id: Date.now() });
     moveTo(worldX, worldY, null);
-  }, [walletAddress, pan, moveTo]);
-
+  }, [walletAddress, pan, moveTo, mvX, mvY]); // Adicionados mvX e mvY às dependências
   // ── Clique em edifício — move e depois abre modal ─────────────────────
   const handleBuildingClick = useCallback((e, player) => {
     e.stopPropagation();
@@ -1103,7 +1092,7 @@ export default function CityMap({ currentPlayer, walletAddress, className, onLoo
 
                 {/* CAMADA 3 — Meu avatar (z-index: 50) — só renderiza APÓS perfil carregar */}
                 {walletAddress && profileData && !profileLoading && (
-                  <MyAvatar mvX={mvX} mvY={mvY} isMoving={isMoving} interrupted={interrupted} username={profileData.nome_utilizador || walletAddress.slice(0, 6)} profileData={profileData} targetPosRef={targetPosRef} />
+                  <MyAvatar mvX={mvX} mvY={mvY} isMoving={isMoving} interrupted={interrupted} username={profileData.nome_utilizador || walletAddress.slice(0, 6)} profileData={profileData} targetPosRef={targetPosRef} isFlipped={isFlipped} directionY={directionY} />
                 )}
 
                 {/* Textos flutuantes de recompensa */}
